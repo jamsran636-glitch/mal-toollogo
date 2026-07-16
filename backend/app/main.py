@@ -1,6 +1,7 @@
-import logging
+﻿import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,19 +20,32 @@ from .api import (
     system,
 )
 from .config import get_settings
+from .seed import seed_users
 
 
 settings = get_settings()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("mal_tooollogo")
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if settings.is_production:
+        created = seed_users(allow_fixed_defaults=True)
+        logger.info("required account bootstrap completed created=%s", created)
+
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version="2.0.0",
     description="Мал тооллого системийн API",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -55,8 +69,11 @@ async def request_id_middleware(request: Request, call_next):
     request_id = request.headers.get("x-request-id", "")[:64] or str(uuid.uuid4())
     request.state.request_id = request_id
     started = time.perf_counter()
+
     response = await call_next(request)
+
     response.headers["X-Request-ID"] = request_id
+
     logger.info(
         "request method=%s path=%s status=%s duration_ms=%.1f request_id=%s",
         request.method,
@@ -65,6 +82,7 @@ async def request_id_middleware(request: Request, call_next):
         (time.perf_counter() - started) * 1000,
         request_id,
     )
+
     return response
 
 
