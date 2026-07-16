@@ -1,0 +1,157 @@
+warning: in the working copy of 'backend/app/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/seed.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/backend/app/main.py b/backend/app/main.py[m
+[1mindex 7d2c226..4bdc272 100644[m
+[1m--- a/backend/app/main.py[m
+[1m+++ b/backend/app/main.py[m
+[36m@@ -1,6 +1,7 @@[m
+[31m-import logging[m
+[32m+[m[32m﻿import logging[m
+ import time[m
+ import uuid[m
+[32m+[m[32mfrom contextlib import asynccontextmanager[m
+ [m
+ from fastapi import FastAPI, Request[m
+ from fastapi.middleware.cors import CORSMiddleware[m
+[36m@@ -19,19 +20,32 @@[m [mfrom .api import ([m
+     system,[m
+ )[m
+ from .config import get_settings[m
+[32m+[m[32mfrom .seed import seed_users[m
+ [m
+ [m
+ settings = get_settings()[m
+[32m+[m
+ logging.basicConfig([m
+     level=logging.INFO,[m
+     format="%(asctime)s %(levelname)s %(name)s %(message)s",[m
+ )[m
+ logger = logging.getLogger("mal_tooollogo")[m
+ [m
+[32m+[m
+[32m+[m[32m@asynccontextmanager[m
+[32m+[m[32masync def lifespan(_: FastAPI):[m
+[32m+[m[32m    if settings.is_production:[m
+[32m+[m[32m        created = seed_users(allow_fixed_defaults=True)[m
+[32m+[m[32m        logger.info("required account bootstrap completed created=%s", created)[m
+[32m+[m
+[32m+[m[32m    yield[m
+[32m+[m
+[32m+[m
+ app = FastAPI([m
+     title=settings.app_name,[m
+     version="2.0.0",[m
+     description="Мал тооллого системийн API",[m
+[32m+[m[32m    lifespan=lifespan,[m
+ )[m
+ [m
+ app.add_middleware([m
+[36m@@ -55,8 +69,11 @@[m [masync def request_id_middleware(request: Request, call_next):[m
+     request_id = request.headers.get("x-request-id", "")[:64] or str(uuid.uuid4())[m
+     request.state.request_id = request_id[m
+     started = time.perf_counter()[m
+[32m+[m
+     response = await call_next(request)[m
+[32m+[m
+     response.headers["X-Request-ID"] = request_id[m
+[32m+[m
+     logger.info([m
+         "request method=%s path=%s status=%s duration_ms=%.1f request_id=%s",[m
+         request.method,[m
+[36m@@ -65,6 +82,7 @@[m [masync def request_id_middleware(request: Request, call_next):[m
+         (time.perf_counter() - started) * 1000,[m
+         request_id,[m
+     )[m
+[32m+[m
+     return response[m
+ [m
+ [m
+[1mdiff --git a/backend/app/seed.py b/backend/app/seed.py[m
+[1mindex 5e5a1c8..01db11c 100644[m
+[1m--- a/backend/app/seed.py[m
+[1m+++ b/backend/app/seed.py[m
+[36m@@ -1,8 +1,4 @@[m
+[31m-"""Seed the four required accounts without storing plaintext codes in source.[m
+[31m-[m
+[31m-Set all four SEED_*_CODE environment variables, run ``python -m app.seed``,[m
+[31m-then remove those variables from the deployment environment.[m
+[31m-"""[m
+[32m+[m[32m﻿"""Create the four required family accounts safely and idempotently."""[m
+ [m
+ from sqlalchemy import select[m
+ [m
+[36m@@ -13,37 +9,59 @@[m [mfrom .security.hashing import hash_password[m
+ [m
+ [m
+ REQUIRED_USERS = ([m
+[31m-    ("Шүрэнчулуун", "OWNER", "seed_owner_code"),[m
+[31m-    ("Адуучин", "HORSE_KEEPER", "seed_horse_code"),[m
+[31m-    ("Үхэрчин", "CATTLE_KEEPER", "seed_cattle_code"),[m
+[31m-    ("Хоньчин", "SHEEP_KEEPER", "seed_sheep_code"),[m
+[32m+[m[32m    ("Шүрэнчулуун", "OWNER", "seed_owner_code", "99104047"),[m
+[32m+[m[32m    ("Адуучин", "HORSE_KEEPER", "seed_horse_code", "00000000"),[m
+[32m+[m[32m    ("Үхэрчин", "CATTLE_KEEPER", "seed_cattle_code", "00000000"),[m
+[32m+[m[32m    ("Хоньчин", "SHEEP_KEEPER", "seed_sheep_code", "00000000"),[m
+ )[m
+ [m
+ [m
+[31m-def seed_users() -> int:[m
+[32m+[m[32mdef seed_users(*, allow_fixed_defaults: bool = False) -> int:[m
+     settings = get_settings()[m
+[31m-    codes = {field: getattr(settings, field) for _, _, field in REQUIRED_USERS}[m
+[31m-    missing = [field.upper() for field, value in codes.items() if not value][m
+[31m-    if missing:[m
+[31m-        raise SystemExit([m
+[31m-            "Missing one-time seed environment values: " + ", ".join(missing)[m
+[31m-        )[m
+[32m+[m
+[32m+[m[32m    configured_codes = {[m
+[32m+[m[32m        field_name: getattr(settings, field_name)[m
+[32m+[m[32m        for _, _, field_name, _ in REQUIRED_USERS[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if not allow_fixed_defaults:[m
+[32m+[m[32m        missing = [[m
+[32m+[m[32m            field_name.upper()[m
+[32m+[m[32m            for field_name, value in configured_codes.items()[m
+[32m+[m[32m            if not value[m
+[32m+[m[32m        ][m
+[32m+[m[32m        if missing:[m
+[32m+[m[32m            raise SystemExit([m
+[32m+[m[32m                "Missing one-time seed environment values: " + ", ".join(missing)[m
+[32m+[m[32m            )[m
+ [m
+     created = 0[m
+[32m+[m
+     with SessionLocal() as db:[m
+[31m-        for username, role, code_field in REQUIRED_USERS:[m
+[31m-            if db.scalar(select(User).where(User.username == username)) is not None:[m
+[32m+[m[32m        for username, role, code_field, fixed_code in REQUIRED_USERS:[m
+[32m+[m[32m            existing = db.scalar([m
+[32m+[m[32m                select(User).where(User.username == username)[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m            if existing is not None:[m
+                 continue[m
+[32m+[m
+[32m+[m[32m            code = configured_codes[code_field] or fixed_code[m
+[32m+[m
+             db.add([m
+                 User([m
+                     username=username,[m
+                     role=role,[m
+[31m-                    password_hash=hash_password(codes[code_field]),[m
+[31m-                    must_change_code=True,[m
+[32m+[m[32m                    password_hash=hash_password(code),[m
+[32m+[m[32m                    is_active=True,[m
+[32m+[m[32m                    must_change_code=False,[m
+[32m+[m[32m                    token_version=1,[m
+                 )[m
+             )[m
+             created += 1[m
+[32m+[m
+         db.commit()[m
+[32m+[m
+     return created[m
+ [m
+ [m
