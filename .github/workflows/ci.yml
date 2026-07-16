@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       APP_ENV: test
       DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/mal_test
       JWT_SECRET: ci-only-secret-value-that-is-at-least-32-characters
-      UPLOAD_DIR: ${{ runner.temp }}/mal-test-uploads
+      UPLOAD_DIR: /tmp/mal-test-uploads
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -84,3 +84,4 @@ jobs:
         run: npx playwright install --with-deps chromium
       - working-directory: frontend
         run: npm run test:e2e
+
