@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.db
+.env
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+uploads/
+*_uploads/
+
+# Node
+node_modules/
+dist/
+frontend/.env
+*.tsbuildinfo
+playwright-report/
+test-results/
+.playwright/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/

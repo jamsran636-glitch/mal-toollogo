@@ -1,0 +1,16 @@
+fastapi==0.139.0
+uvicorn[standard]==0.35.0
+pydantic-settings==2.10.1
+sqlalchemy==2.0.43
+PyJWT==2.13.0
+alembic==1.16.5
+pwdlib[argon2]==0.2.1
+python-multipart==0.0.31
+openpyxl==3.1.5
+reportlab==4.4.3
+Pillow==12.3.0
+httpx==0.28.1
+psycopg[binary]==3.2.10
+pytest==9.0.3
+pytest-cov==6.2.1
+ruff==0.12.11
