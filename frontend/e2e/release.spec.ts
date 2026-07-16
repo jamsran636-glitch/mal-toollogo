@@ -126,6 +126,50 @@ test("owner completes core livestock and owner workflows", async ({ page }, test
   await expect(page.getByText(/хүчингүй|Сэргээж чадсангүй/)).toBeVisible();
 });
 
+test("owner permanently deletes archived horse and cattle with destructive confirmation", async ({ page }, testInfo) => {
+  test.setTimeout(75_000);
+  test.skip(!["chromium", "iphone"].includes(testInfo.project.name), "covered on desktop and mobile");
+  const suffix = testInfo.project.name;
+  await login(page, "Шүрэнчулуун", "99104047");
+  await expect(page.getByAltText("Адууны модуль")).toBeVisible();
+  await expect(page.getByAltText("Үхрийн модуль")).toBeVisible();
+
+  await page.getByText("Адуу", { exact: true }).first().click();
+  await page.getByPlaceholder("Азарганы шинэ бүлэг").fill(`Delete ${suffix}`);
+  await page.getByRole("button", { name: "Бүлэг нэмэх" }).click();
+  await page.getByRole("button", { name: /Адуу нэмэх/ }).click();
+  await page.getByLabel("Бүлэг").selectOption({ label: `Delete ${suffix}` });
+  await page.getByLabel("Зүс").fill(`Устгах адуу ${suffix}`);
+  await page.getByRole("button", { name: "Хадгалах" }).click();
+  await page.getByText(new RegExp(`Устгах адуу ${suffix}`)).last().click();
+  await page.getByRole("button", { name: "Архивлах" }).click();
+  await page.getByLabel("Тайлбар").fill("E2E permanent deletion");
+  await page.getByRole("button", { name: "Баталгаажуулах" }).click();
+  await page.getByRole("button", { name: "Архив", exact: true }).click();
+  await page.getByText(new RegExp(`Устгах адуу ${suffix}`)).last().click();
+  await page.getByRole("button", { name: /Бүрмөсөн устгах/ }).click();
+  await page.getByLabel(/УСТГАХ гэж бичнэ үү/).fill("УСТГАХ");
+  await page.getByRole("button", { name: "Бүрмөсөн устгах", exact: true }).last().click();
+  await expect(page.getByText(new RegExp(`Устгах адуу ${suffix}`))).toHaveCount(0);
+  await page.getByLabel("Буцах").click();
+
+  await page.getByText("Үхэр", { exact: true }).first().click();
+  await page.getByRole("button", { name: /Үхэр нэмэх/ }).click();
+  await page.getByLabel("Ээмэгний дугаар").fill(`DELETE-${suffix}`);
+  await page.getByLabel("Зүс").fill("Устгах алаг");
+  await page.getByRole("button", { name: "Хадгалах" }).click();
+  await page.getByRole("button", { name: new RegExp(`DELETE-${suffix}`) }).click();
+  await page.getByRole("button", { name: "Архивлах" }).click();
+  await page.getByLabel("Тайлбар").fill("E2E permanent deletion");
+  await page.getByRole("button", { name: "Баталгаажуулах" }).click();
+  await page.getByRole("button", { name: "Архив", exact: true }).click();
+  await page.getByRole("button", { name: new RegExp(`DELETE-${suffix}`) }).click();
+  await page.getByRole("button", { name: /Бүрмөсөн устгах/ }).click();
+  await page.getByLabel(/УСТГАХ гэж бичнэ үү/).fill("УСТГАХ");
+  await page.getByRole("button", { name: "Бүрмөсөн устгах", exact: true }).last().click();
+  await expect(page.getByText(new RegExp(`DELETE-${suffix}`))).toHaveCount(0);
+});
+
 for (const account of [
   { username: "Адуучин", code: "00000000", visible: "Адуу", hidden: ["Үхэр", "Хонь", "Анализ"] },
   { username: "Үхэрчин", code: "00000000", visible: "Үхэр", hidden: ["Адуу", "Хонь", "Анализ"] },

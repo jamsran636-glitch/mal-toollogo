@@ -54,6 +54,8 @@ export interface Horse {
   unnatural_loss: boolean;
   version: number;
   images: ImageAsset[];
+  main_image: ImageAsset | null;
+  layout_image: ImageAsset | null;
   indent: number;
   relation_note: string | null;
 }
@@ -76,6 +78,8 @@ export interface Cattle {
   unnatural_loss: boolean;
   version: number;
   images: ImageAsset[];
+  main_image: ImageAsset | null;
+  layout_image: ImageAsset | null;
 }
 
 export interface Stats {

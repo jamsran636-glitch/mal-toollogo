@@ -2,6 +2,7 @@ import { openDB, type DBSchema } from "idb";
 import { api, ApiError, NetworkError } from "../api/client";
 
 export type QueueStatus = "pending" | "syncing" | "failed" | "conflict";
+export type SyncStatus = "synced" | "syncing" | "offline" | "failed";
 
 export interface QueuedMutation {
   id: string;
@@ -37,6 +38,12 @@ const db = openDB<QueueDatabase>("mal-toollogo-sync-v2", 1, {
   },
 });
 
+const syncFlights = new Map<string, Promise<void>>();
+
+function publishSyncStatus(userId: string, status: SyncStatus): void {
+  window.dispatchEvent(new CustomEvent("mal-sync-status", { detail: { userId, status } }));
+}
+
 export async function enqueueMutation(
   userId: string,
   path: string,
@@ -66,8 +73,12 @@ export async function listQueue(userId: string): Promise<QueuedMutation[]> {
   return (await db).getAllFromIndex("mutations", "by-user", userId);
 }
 
-export async function retryQueue(userId: string): Promise<void> {
-  if (!navigator.onLine) return;
+async function runQueue(userId: string): Promise<void> {
+  if (!navigator.onLine) {
+    publishSyncStatus(userId, "offline");
+    return;
+  }
+  publishSyncStatus(userId, "syncing");
   const database = await db;
   const items = await database.getAllFromIndex("mutations", "by-user", userId);
   for (const item of items.filter((row) => row.status === "pending" || row.status === "failed")) {
@@ -92,7 +103,28 @@ export async function retryQueue(userId: string): Promise<void> {
       });
     }
   }
+  const remaining = await database.getAllFromIndex("mutations", "by-user", userId);
+  publishSyncStatus(
+    userId,
+    remaining.some((item) => item.status === "failed" || item.status === "conflict")
+      ? "failed"
+      : "synced",
+  );
   window.dispatchEvent(new Event("mal-queue-change"));
+  window.dispatchEvent(new Event("mal-data-refresh"));
+}
+
+export function retryQueue(userId: string): Promise<void> {
+  const active = syncFlights.get(userId);
+  if (active) return active;
+  const flight = runQueue(userId)
+    .catch((error) => {
+      publishSyncStatus(userId, "failed");
+      throw error;
+    })
+    .finally(() => syncFlights.delete(userId));
+  syncFlights.set(userId, flight);
+  return flight;
 }
 
 export async function removeQueueItem(id: string): Promise<void> {

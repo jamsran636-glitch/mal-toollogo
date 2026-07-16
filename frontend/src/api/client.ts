@@ -60,6 +60,10 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
     return api<T>(path, options, false);
   }
   if (!response.ok) throw await parseError(response);
+  const method = (options.method || "GET").toUpperCase();
+  if (!path.includes("/auth/") && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    window.dispatchEvent(new Event("mal-mutation-success"));
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

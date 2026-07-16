@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, CloudOff, Download, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudOff, Download, RefreshCw, X, XCircle } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { listQueue, removeQueueItem, retryQueue, type QueuedMutation } from "../offline/queue";
+import { listQueue, removeQueueItem, retryQueue, type QueuedMutation, type SyncStatus } from "../offline/queue";
 
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose(): void; wide?: boolean }) {
   return <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
@@ -68,19 +68,29 @@ export function ChangeCodeDialog() {
 export function SyncPanel({ userId, online }: { userId: string; online: boolean }) {
   const [items, setItems] = useState<QueuedMutation[]>([]);
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<SyncStatus>(online ? "synced" : "offline");
   const load = () => listQueue(userId).then(setItems);
   useEffect(() => {
     void load();
-    const handler = () => void load();
-    window.addEventListener("mal-queue-change", handler);
-    if (online) void retryQueue(userId);
-    return () => window.removeEventListener("mal-queue-change", handler);
+    setStatus(online ? "synced" : "offline");
+    const queueHandler = () => void load();
+    const statusHandler = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string; status: SyncStatus }>).detail;
+      if (detail.userId === userId) setStatus(detail.status);
+    };
+    window.addEventListener("mal-queue-change", queueHandler);
+    window.addEventListener("mal-sync-status", statusHandler);
+    return () => {
+      window.removeEventListener("mal-queue-change", queueHandler);
+      window.removeEventListener("mal-sync-status", statusHandler);
+    };
   }, [online, userId]);
+  const labels: Record<SyncStatus, string> = { synced: "Синк хийгдсэн", syncing: "Синк хийж байна", offline: "Офлайн", failed: "Синк амжилтгүй" };
+  const icon = status === "synced" ? <CheckCircle2 size={16} /> : status === "offline" ? <CloudOff size={16} /> : status === "failed" ? <XCircle size={16} /> : <RefreshCw className="spin" size={16} />;
   return <>
-    {(!online || items.length > 0) && <button className="status-pill" onClick={() => setOpen(true)}>
-      {online ? <RefreshCw size={16} /> : <CloudOff size={16} />}
-      {online ? `${items.length} хүлээгдэж байна` : "Офлайн"}
-    </button>}
+    <button className={`status-pill ${status}`} aria-label={`Синк төлөв: ${labels[status]}`} onClick={() => setOpen(true)}>
+      {icon}{labels[status]}{items.length > 0 ? ` · ${items.length}` : ""}
+    </button>
     {open && <Modal title="Синк хийх үйлдлүүд" onClose={() => setOpen(false)}>
       {!items.length && <p>Хүлээгдэж буй үйлдэл алга.</p>}
       {items.map((item) => <article className="queue-item" key={item.id}>
@@ -89,7 +99,7 @@ export function SyncPanel({ userId, online }: { userId: string; online: boolean 
         <small>{new Date(item.createdAt).toLocaleString("mn-MN")}</small>
         {(item.status === "failed" || item.status === "conflict") && <button className="link" onClick={() => removeQueueItem(item.id)}>Устгах</button>}
       </article>)}
-      <button className="secondary" disabled={!online} onClick={() => retryQueue(userId)}><Download size={17} /> Одоо синк хийх</button>
+      <button className="secondary" disabled={!online} onClick={() => void retryQueue(userId).catch(() => undefined)}><Download size={17} /> Одоо синк хийх</button>
     </Modal>}
   </>;
 }

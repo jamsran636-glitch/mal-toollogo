@@ -22,6 +22,7 @@ describe("role-based home", () => {
   it("shows only the horse module to the horse worker", async () => {
     render(<App />);
     expect((await screen.findByText("Адуу")).closest("button")).toHaveClass("home-card");
+    expect(screen.getByAltText("Адууны модуль")).toHaveAttribute("src", "/module-icons/horse.png");
     expect(screen.queryByRole("button", { name: /Үхэр/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Анализ/ })).not.toBeInTheDocument();
   });
