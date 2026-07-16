@@ -103,9 +103,13 @@ def check_storage_ready() -> None:
         response.raise_for_status()
         bucket = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail="Image storage is not ready") from exc
+        raise HTTPException(
+            status_code=503, detail="Image storage is not ready"
+        ) from exc
     if bucket.get("public") is not False:
-        raise HTTPException(status_code=503, detail="Production image bucket must be private")
+        raise HTTPException(
+            status_code=503, detail="Production image bucket must be private"
+        )
 
 
 def save_object(

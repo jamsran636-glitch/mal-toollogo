@@ -12,12 +12,12 @@ os.environ["JWT_SECRET"] = "playwright-only-secret-that-is-at-least-32-character
 os.environ["CORS_ORIGINS"] = "http://127.0.0.1:4173"
 os.environ["UPLOAD_DIR"] = str(Path(__file__).resolve().parent / "e2e_uploads")
 
-import uvicorn
+import uvicorn  # noqa: E402
 
-from app.database import Base, SessionLocal, engine
-from app.main import app
-from app.models import User
-from app.security.hashing import hash_password
+from app.database import Base, SessionLocal, engine  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import User  # noqa: E402
+from app.security.hashing import hash_password  # noqa: E402
 
 
 accounts = (

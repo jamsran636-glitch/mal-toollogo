@@ -155,7 +155,9 @@ def test_horse_idempotency_prevents_duplicate(client, horse_worker):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="PostgreSQL concurrency test")
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql", reason="PostgreSQL concurrency test"
+)
 def test_concurrent_idempotency_returns_one_horse(client, horse_worker):
     group = create_group(client, horse_worker, "Concurrent")
     payload = {

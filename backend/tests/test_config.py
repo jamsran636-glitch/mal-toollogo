@@ -5,7 +5,9 @@ from app.config import Settings
 
 
 def test_plain_postgres_urls_normalize_to_psycopg():
-    settings = Settings(app_env="test", database_url="postgresql://user:pass@db.example/test")
+    settings = Settings(
+        app_env="test", database_url="postgresql://user:pass@db.example/test"
+    )
     assert settings.normalized_database_url.startswith("postgresql+psycopg://")
 
 
