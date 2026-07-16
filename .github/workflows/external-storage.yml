@@ -1,0 +1,26 @@
+name: Live Supabase Storage Verification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  storage-lifecycle:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      DATABASE_URL: sqlite://
+      JWT_SECRET: workflow-only-secret-that-is-at-least-32-characters
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Require configured secrets
+        shell: bash
+        run: test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && test -n "$SUPABASE_STORAGE_BUCKET"
+      - working-directory: backend
+        run: pytest -q tests/test_supabase_live.py -m integration -rs
