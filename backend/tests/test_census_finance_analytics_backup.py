@@ -185,6 +185,99 @@ def test_dashboard_preferences_persist(client, owner):
     ] == ["counts", "growth"]
 
 
+def test_archived_animals_and_finance_do_not_affect_current_dashboard(client, owner):
+    group = client.post(
+        "/api/v1/horses/groups",
+        headers=headers(owner),
+        json={"name": "Stats exclusion"},
+    ).json()
+    horses = []
+    for color in ("Active horse", "Archived horse"):
+        response = client.post(
+            "/api/v1/horses",
+            headers=headers(owner),
+            json={
+                "group_id": group["id"],
+                "color": color,
+                "birth_year": 2020,
+                "sex": "MALE",
+                "male_status": "GELDING",
+            },
+        )
+        assert response.status_code == 200, response.text
+        horses.append(response.json())
+    cattle = []
+    for tag in ("ACTIVE-STATS", "ARCHIVED-STATS"):
+        response = client.post(
+            "/api/v1/cattle",
+            headers=headers(owner),
+            json={
+                "ear_tag": tag,
+                "color": "Алаг",
+                "birth_year": 2020,
+                "sex": "MALE",
+            },
+        )
+        assert response.status_code == 200, response.text
+        cattle.append(response.json())
+    client.post(
+        f"/api/v1/horses/{horses[1]['id']}/archive",
+        headers=headers(owner),
+        json={"archive_note": "demo archive"},
+    )
+    client.post(
+        f"/api/v1/cattle/{cattle[1]['id']}/archive",
+        headers=headers(owner),
+        json={"archive_note": "demo archive"},
+    )
+    finance = client.post(
+        "/api/v1/finance",
+        headers=headers(owner),
+        json={
+            "entry_type": "INCOME",
+            "amount": 999999,
+            "entry_date": "2026-07-15",
+            "livestock_module": "horses",
+            "description": "archived demo income",
+        },
+    ).json()
+    client.post(
+        f"/api/v1/finance/{finance['id']}/archive",
+        headers=headers(owner),
+        json={"archive_note": "demo archive"},
+    )
+    client.post(
+        "/api/v1/analytics/snapshots",
+        headers=headers(owner),
+        json={
+            "module": "horses",
+            "snapshot_date": "2025-01-01",
+            "count": 12,
+            "note": "historical verified inventory",
+        },
+    )
+
+    assert (
+        client.get("/api/v1/horses/statistics", headers=headers(owner)).json()["total"]
+        == 1
+    )
+    assert (
+        client.get("/api/v1/cattle/statistics", headers=headers(owner)).json()["total"]
+        == 1
+    )
+    dashboard = client.get(
+        "/api/v1/analytics/dashboard?year=2026", headers=headers(owner)
+    ).json()
+    assert dashboard["livestock_counts"]["horses"] == 1
+    assert dashboard["livestock_counts"]["cattle"] == 1
+    assert dashboard["adult_males"]["horses"]["total"] == 1
+    assert dashboard["adult_males"]["cattle"]["total"] == 1
+    assert dashboard["profit_by_livestock"]["horses"]["profit"] == 0
+    assert dashboard["growth"] == [
+        {"year": 2025, "horses": 12, "cattle": None, "small_livestock": None}
+    ]
+
+
 def test_empty_backup_rejected_without_data_loss(client, owner):
     group = client.post(
         "/api/v1/horses/groups", headers=headers(owner), json={"name": "Preserve me"}

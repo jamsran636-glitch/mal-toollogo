@@ -1,4 +1,4 @@
-﻿"""Create the four required family accounts safely and idempotently."""
+"""Create the four required family accounts safely and idempotently."""
 
 from sqlalchemy import select
 
@@ -39,9 +39,7 @@ def seed_users(*, allow_fixed_defaults: bool = False) -> int:
 
     with SessionLocal() as db:
         for username, role, code_field, fixed_code in REQUIRED_USERS:
-            existing = db.scalar(
-                select(User).where(User.username == username)
-            )
+            existing = db.scalar(select(User).where(User.username == username))
 
             if existing is not None:
                 continue

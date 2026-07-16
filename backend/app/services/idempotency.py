@@ -3,7 +3,7 @@ import json
 from typing import Any
 
 from fastapi import HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from ..auth import AuthUser
@@ -28,6 +28,16 @@ def replay(
         return None, None
     if len(key) > 100:
         raise HTTPException(status_code=400, detail="Idempotency-Key хэт урт байна")
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        # Serialize the first writer for this user/key for the duration of the
+        # transaction. The waiting request then observes and replays the row
+        # committed by the winner instead of racing the unique constraint.
+        lock_id = int.from_bytes(
+            hashlib.sha256(f"{user.id}:{key}".encode()).digest()[:8],
+            byteorder="big",
+            signed=True,
+        )
+        db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
     existing = db.scalar(
         select(IdempotencyRecord).where(
             IdempotencyRecord.user_id == user.id, IdempotencyRecord.key == key

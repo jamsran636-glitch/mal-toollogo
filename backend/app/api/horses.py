@@ -4,11 +4,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
-from ..auth import MODULE_HORSES, AuthUser, require_module
+from ..auth import MODULE_HORSES, AuthUser, require_module, require_owner
 from ..database import get_db
 from ..models import Horse, HorseGroup, HorseGroupTransfer, ImageAsset
 from ..schemas import (
@@ -23,8 +23,10 @@ from ..schemas import (
     HorseTransferRequest,
     HorseUpdate,
     ImageRead,
+    PermanentDeleteRequest,
     RestoreRequest,
 )
+from ..services.deletion import image_references, image_snapshot, owned_assets
 from ..services.domain import (
     LIVING_HORSE_STATUSES,
     age_years,
@@ -74,6 +76,13 @@ def horse_read(
         .where(ImageAsset.owner_type == "horse", ImageAsset.owner_id == row.id)
         .order_by(ImageAsset.kind, ImageAsset.created_at)
     ).all()
+    image_rows = [image_read(asset) for asset in assets]
+    main_image = next(
+        (image for image in image_rows if image.id == row.main_image_id), None
+    )
+    layout_image = next(
+        (image for image in image_rows if image.id == row.layout_image_id), None
+    )
     years = age_years(row.birth_year)
     return HorseRead(
         id=row.id,
@@ -96,7 +105,9 @@ def horse_read(
         archive_note=row.archive_note,
         unnatural_loss=row.unnatural_loss,
         version=row.version,
-        images=[image_read(asset) for asset in assets],
+        images=image_rows,
+        main_image=main_image,
+        layout_image=layout_image,
         created_at=row.created_at,
         updated_at=row.updated_at,
         indent=indent,
@@ -626,6 +637,78 @@ def restore_horse(
     return horse_read(row, db)
 
 
+@router.delete("/{horse_id}/permanent")
+def permanently_delete_horse(
+    horse_id: str,
+    payload: PermanentDeleteRequest,
+    request: Request,
+    user: AuthUser = Depends(require_owner),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    row = db.get(Horse, horse_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Адуу олдсонгүй")
+    if row.current_status not in {"ARCHIVED", "DECEASED"}:
+        raise HTTPException(
+            status_code=409, detail="Идэвхтэй адууг бүрмөсөн устгах боломжгүй"
+        )
+
+    transfers = list(
+        db.scalars(
+            select(HorseGroupTransfer).where(HorseGroupTransfer.horse_id == horse_id)
+        ).all()
+    )
+    assets = owned_assets(db, "horse", horse_id)
+    references = {
+        asset.id: image_references(
+            db, asset.id, excluding_type="horse", excluding_id=horse_id
+        )
+        for asset in assets
+    }
+    snapshot = {
+        "record": model_snapshot(row),
+        "transfers": [model_snapshot(transfer) for transfer in transfers],
+        "images": [image_snapshot(asset) for asset in assets],
+        "confirmation": payload.confirmation,
+    }
+
+    # External objects are removed before the database transaction is committed.
+    # A storage failure therefore leaves the archived record intact and retryable.
+    for asset in assets:
+        if not references[asset.id]:
+            delete_object(asset.storage_key)
+
+    db.execute(update(Horse).where(Horse.mother_id == horse_id).values(mother_id=None))
+    db.execute(update(Horse).where(Horse.father_id == horse_id).values(father_id=None))
+    db.execute(
+        delete(HorseGroupTransfer).where(HorseGroupTransfer.horse_id == horse_id)
+    )
+    row.main_image_id = None
+    row.layout_image_id = None
+    db.flush()
+    db.delete(row)
+    db.flush()
+    for asset in assets:
+        if references[asset.id]:
+            asset.owner_type, asset.owner_id = references[asset.id][0]
+        else:
+            db.delete(asset)
+    write_audit(
+        db,
+        user,
+        "PERMANENT_DELETE",
+        request=request,
+        module=MODULE_HORSES,
+        entity_type="horse",
+        entity_id=horse_id,
+        previous_data=snapshot,
+        new_data=None,
+        detail="Owner-confirmed permanent deletion",
+    )
+    db.commit()
+    return {"status": "deleted", "entity_type": "horse", "entity_id": horse_id}
+
+
 @router.post("/{horse_id}/images", response_model=HorseRead)
 async def replace_images(
     horse_id: str,
@@ -648,6 +731,9 @@ async def replace_images(
     new_assets, old_keys = create_image_set(
         db, owner_type="horse", owner_id=row.id, uploads=prepared, created_by=user.id
     )
+    # ImageAsset has no ORM relationship to Horse, so flush the referenced rows
+    # before assigning their foreign keys (required by SQLite and PostgreSQL).
+    db.flush()
     main = next(asset for asset in new_assets if asset.kind == "MAIN")
     layout = next(asset for asset in new_assets if asset.kind == "LAYOUT")
     row.main_image_id = main.id

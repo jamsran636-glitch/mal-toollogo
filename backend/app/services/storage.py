@@ -201,7 +201,9 @@ def delete_object(storage_key: str) -> None:
             response.raise_for_status()
         return
     if settings.is_production:
-        return
+        raise HTTPException(
+            status_code=503, detail="Production image storage is not configured"
+        )
     path = (settings.upload_path / storage_key).resolve()
     if path.is_relative_to(settings.upload_path) and path.is_file():
         path.unlink()

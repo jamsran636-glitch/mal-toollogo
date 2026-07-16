@@ -127,6 +127,10 @@ class RestoreRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=4000)
 
 
+class PermanentDeleteRequest(BaseModel):
+    confirmation: Literal["УСТГАХ"]
+
+
 class HorseTransferRequest(BaseModel):
     to_group_id: str
     reason: str = Field(min_length=1, max_length=4000)
@@ -167,6 +171,8 @@ class HorseRead(BaseModel):
     unnatural_loss: bool
     version: int
     images: list[ImageRead] = []
+    main_image: ImageRead | None = None
+    layout_image: ImageRead | None = None
     created_at: datetime
     updated_at: datetime
     indent: int = 0
@@ -242,6 +248,8 @@ class CattleRead(BaseModel):
     unnatural_loss: bool
     version: int
     images: list[ImageRead] = []
+    main_image: ImageRead | None = None
+    layout_image: ImageRead | None = None
     created_at: datetime
     updated_at: datetime
 
