@@ -108,6 +108,13 @@ Major changes include `.github/workflows/ci.yml`, `render.yaml`, `README.md`, ba
 
 The continuation initialized Git on `main` and created logical local commits. No remote push was attempted.
 
+Implementation history preceding this report update:
+
+- `aaf2ed9` — Build secure backend foundation and domain APIs
+- `fae38ac` — Complete responsive livestock and owner workflows
+- `16f405d` — Add integration, browser, CI, and deployment verification
+- `abc1939` — Document and gate external deployment verification
+
 ## 19. External verification continuation — 2026-07-16
 
 - Git was initialized on `main` with logical backend, frontend, verification, and documentation commits. Secrets and generated artifacts are ignored.

@@ -83,3 +83,10 @@ Manual checklist:
 ## Final recommendation
 
 Keep status at **release candidate**. Do not deploy family data until PostgreSQL verification and live private Supabase lifecycle pass. After those pass, deploy to a staging Render/Vercel pair and complete the physical-device checklist before production approval.
+
+## Git evidence
+
+- Branch: `main`
+- Four logical implementation commits are recorded in `IMPLEMENTATION_REPORT.md`.
+- Secret/generated-artifact tracking scan: PASS.
+- Working tree was clean immediately before this evidence-only documentation update.
